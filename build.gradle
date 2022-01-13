@@ -1,6 +1,8 @@
 import com.github.jk1.license.render.*;
 import com.github.jk1.license.filter.*;
 
+
+
 plugins {
     id 'java'
     id 'idea'
@@ -40,6 +42,7 @@ allprojects {
         }
         maven { url "${extraRepoUrl}" }
     }
+    
 
     apply plugin: 'idea'
     apply plugin: 'jacoco'
@@ -108,6 +111,11 @@ subprojects {
                    '**/source-cassandra-*'
         ])
     }
+    // license plugin automatically fires these tasks, disable them and run them during releases
+    gradle.startParameter.excludedTaskNames += "licenseMain"
+    gradle.startParameter.excludedTaskNames += "licenseTest"
+
+
 
     jacocoTestReport {
         reports {
