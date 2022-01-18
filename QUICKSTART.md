@@ -114,7 +114,7 @@ You should notice following output:
 
 Update data into Cassandra table:
    
-   docker exec -it cassandra cqlsh -e "UPDATE ks1.table1 SET b = 'example2' WHERE a = 'test1'"
+    docker exec -it cassandra cqlsh -e "UPDATE ks1.table1 SET b = 'example2' WHERE a = 'test1'"
 
 Check data is updated in elasticsearch:
 
@@ -149,7 +149,7 @@ Check data is updated in elasticsearch:
 
 Delete data from Cassandra table:
    
-   docker exec -it cassandra cqlsh -e "DELETE FROM ks1.table1 where a = 'test1'"
+    docker exec -it cassandra cqlsh -e "DELETE FROM ks1.table1 where a = 'test1'"
 
 Check Elasticsearch to confirm that data is deleted:
 
