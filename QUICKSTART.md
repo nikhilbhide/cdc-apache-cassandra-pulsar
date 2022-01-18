@@ -8,11 +8,9 @@ Build docker images with CDC enabled:
 
 ## Start Cassandra and Pulsar
 
-Start containers for Cassandra 3.11 (c3), Cassandra 4.0 (c4), or DSE 6.8.16+ (dse4) at your convenience, and Apache Pulsar:
+Start containers for Cassandra 4.0 and Apache Pulsar:
 
-    ./gradlew agent-dse4-luna:composeUp
-    ./gradlew agent-c4-luna:composeUp
-    ./gradlew agent-c3-luna:composeUp
+    ./gradlew agent-c4-pulsar:composeUp
 
 Create the keyspace and table:
 
@@ -44,37 +42,11 @@ Check the source connector logs:
 
     docker exec -it pulsar cat /pulsar/logs/functions/public/default/cassandra-source-ks1-table1/cassandra-source-ks1-table1-0.log
 
-Stress the Cassandra node:
-
-    docker exec -it cassandra cassandra-stress user profile=/table1.yaml no-warmup ops\(insert=1\) n=1000000 -rate threads=10
-
-For Cassandra 3 only, we need to fill up the working commitlog file (the one where new mutations are appended) and flush the table to get discarded commitlog files visible from the /var/lib/cassandra/cdc_raw directory:
-
-    docker exec -it cassandra cassandra-stress user profile=/table2.yaml no-warmup ops\(insert=1\) n=1000000 -rate threads=10
-    docker exec -it cassandra nodetool flush
-
-Check events and data topics throughput:
-
-    docker exec -it pulsar bin/pulsar-admin topics stats persistent://public/default/events-ks1.table1
-    docker exec -it pulsar bin/pulsar-admin topics stats persistent://public/default/data-ks1.table1
-
-Check the cassandra source connector metrics:
-
-    docker exec -it pulsar curl http://localhost:8080/metrics/ | grep cassandra-source-ks1-table1
-
-## Prometheus monitoring
-
-Start the prometheus and grafana containers to monitor the CDC replication:
-
-    ./gradlew agent-dse4-pulsar:prometheusComposeUp
-    
-Open [prometheus](http://localhost:9090) and [grafana](http://localhost:3000) (login=admin, password=admin)
-
 ## Elasticsearch sink
 
 Start elasticsearch and kibana containers:
 
-    ./gradlew agent-dse4-luna:elasticsearchComposeUp
+    ./gradlew agent-c4-pulsar:elasticsearchComposeUp
 
 Deploy an Elasticsearch sink connector:
 
@@ -101,12 +73,105 @@ Check the source connector logs:
 
     docker exec -it pulsar cat /pulsar/logs/functions/public/default/es-sink-ks1-table1/es-sink-ks1-table1.log
 
-Check data are replicated in [elasticsearch](http://localhost:9200/_cat/indices)
+Insert data into Cassandra table:
+    
+    docker exec -it cassandra cqlsh -e "INSERT INTO ks1.table1 (a, b) VALUES ('Test1', 'Example1')"
 
-    curl http://localhost:9200/_cat/indices
+Check data are replicated in [elasticsearch](http://localhost:9200/_cat/indices):
+
+    curl http://localhost:9200/ks1.table1/_search?pretty
+
+You should notice following output:
+
+    {
+      "took" : 2,
+      "timed_out" : false,
+      "_shards" : {
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+      },
+      "hits" : {
+        "total" : {
+          "value" : 1,
+          "relation" : "eq"
+        },
+        "max_score" : 1.0,
+        "hits" : [
+          {
+            "_index" : "ks1.table1",
+            "_type" : "_doc",
+            "_id" : "test1",
+            "_score" : 1.0,
+            "_source" : {
+              "b" : "example1"
+            }
+          }
+        ]
+      }
+    }
+
+Update data into Cassandra table:
+   
+   docker exec -it cassandra cqlsh -e "UPDATE ks1.table1 SET b = 'example2' WHERE a = 'test1'"
+
+Check data is updated in elasticsearch:
+
+    {
+      "took" : 1,
+      "timed_out" : false,
+      "_shards" : {
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+      },
+      "hits" : {
+        "total" : {
+          "value" : 1,
+          "relation" : "eq"
+        },
+        "max_score" : 1.0,
+        "hits" : [
+          {
+            "_index" : "ks1.table1",
+            "_type" : "_doc",
+            "_id" : "test1",
+            "_score" : 1.0,
+            "_source" : {
+              "b" : "example2"
+            }
+          }
+        ]
+      }
+    }
+
+Delete data from Cassandra table:
+   
+   docker exec -it cassandra cqlsh -e "DELETE FROM ks1.table1 where a = 'test1'"
+
+Check Elasticsearch to confirm that data is deleted:
+
+    {
+      "took" : 807,
+      "timed_out" : false,
+      "_shards" : {
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+      },
+      "hits" : {
+        "total" : {
+          "value" : 0,
+          "relation" : "eq"
+        },
+        "max_score" : null,
+        "hits" : [ ]
+      }
+    }
 
 ## Shutdown containers
 
-    ./gradlew agent-dse4-luna:composeDown
-    ./gradlew agent-c4-luna:composeDown
-    ./gradlew agent-c3-luna:composeDown
+    ./gradlew agent-c4-pulsar:composeDown
